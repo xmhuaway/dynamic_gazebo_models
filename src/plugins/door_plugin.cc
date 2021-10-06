@@ -55,6 +55,14 @@
 #define CONTEXT_SPACE_Y_RANGE 2.0
 #define CONTEXT_SPACE_Z_RANGE 2.0
 
+#define GAZEBO_9 (GAZEBO_MAJOR_VERSION >= 9)
+
+#if GAZEBO_9
+#include <ignition/math/Vector3.hh>
+#else
+#include <gazebo/math/gzmath.hh>
+#endif
+
 
 namespace gazebo
 { 
@@ -64,11 +72,26 @@ namespace gazebo
   {
 
   private:
+
+    #if GAZEBO_9
+			typedef ignition::math::Pose3d P3;
+      typedef ignition::math::Vector3d V3;
+		#else
+			typedef gazebo::math::Pose P3;
+		#endif
+
+
     physics::ModelPtr model;
     physics::LinkPtr doorLink;
-    math::Pose currPose, currFpvPose; 
 
-    math::Vector3 cmd_vel;
+    #if GAZEBO_9
+			P3 currPose, currFpvPose;
+      V3 cmd_vel;
+		#else
+			math::Pose currPose, currFpvPose; 
+      math::Vector3 cmd_vel;
+		#endif
+    
 
     bool isActive;
     int activeDoors[100];
@@ -198,11 +221,19 @@ namespace gazebo
 
       if (type == SLIDE) {
         // compute slide constraints
-        float spawnPosX = model->GetWorldPose().pos.x;
+        #if GAZEBO_9
+				  float spawnPosX = model->WorldPose().Pos().X();
+        #else
+          float spawnPosX = model->GetWorldPose().pos.x;
+        #endif
         minPosX = door_direction.compare(DIRECTION_SLIDE_RIGHT) == 0 ? spawnPosX - max_trans_dist : spawnPosX;
         maxPosX = door_direction.compare(DIRECTION_SLIDE_RIGHT) == 0 ? spawnPosX : spawnPosX + max_trans_dist;
 
-        float spawnPosY = model->GetWorldPose().pos.y;
+        #if GAZEBO_9
+				  float spawnPosY = model->WorldPose().Pos().Y();
+        #else
+          float spawnPosY = model->GetWorldPose().pos.y;
+        #endif
         minPosY = door_direction.compare(DIRECTION_SLIDE_RIGHT) == 0 ? spawnPosY - max_trans_dist : spawnPosY;
         maxPosY = door_direction.compare(DIRECTION_SLIDE_RIGHT) == 0 ? spawnPosY : spawnPosY + max_trans_dist;
       }
@@ -247,58 +278,106 @@ namespace gazebo
     void applyConstraints()
     {
       if (type == SLIDE) {
-        float currDoorPosX = model->GetWorldPose().pos.x;
-        float currDoorPosY = model->GetWorldPose().pos.y;
 
-        math::Pose constrainedPose;
+        #if GAZEBO_9
+          float currDoorPosX = model->WorldPose().Pos().X();
+				  float currDoorPosY = model->WorldPose().Pos().Y();
+          P3 constrainedPose;
 
-        if (currDoorPosX > maxPosX) {
-          constrainedPose.pos.x = maxPosX;
-        } else if (currDoorPosX < minPosX) {
-          constrainedPose.pos.x = minPosX;
-        } else {
-          constrainedPose.pos.x = currDoorPosX;
-        }
+          if (currDoorPosX > maxPosX) {
+            constrainedPose.Pos().X() = maxPosX;
+          } else if (currDoorPosX < minPosX) {
+            constrainedPose.Pos().X() = minPosX;
+          } else {
+            constrainedPose.Pos().X() = currDoorPosX;
+          }
 
-        if (currDoorPosY > maxPosY) {
-          constrainedPose.pos.y = maxPosY;
-        } else if (currDoorPosY < minPosY) {
-          constrainedPose.pos.y = minPosY;
-        } else {
-          constrainedPose.pos.y = currDoorPosY;
-        }
+          if (currDoorPosY > maxPosY) {
+            constrainedPose.Pos().Y() = maxPosY;
+          } else if (currDoorPosY < minPosY) {
+            constrainedPose.Pos().Y() = minPosY;
+          } else {
+            constrainedPose.Pos().Y() = currDoorPosY;
+          }
 
-          constrainedPose.pos.z = model->GetWorldPose().pos.z;
-          constrainedPose.rot.x = model->GetWorldPose().rot.x;
-          constrainedPose.rot.y = model->GetWorldPose().rot.y;
-          constrainedPose.rot.z = model->GetWorldPose().rot.z;
+            constrainedPose.Pos().Z() = model->WorldPose().Pos().Z();
+            constrainedPose.Rot().X() = model->WorldPose().Rot().X();
+            constrainedPose.Rot().Y() = model->WorldPose().Rot().Y();
+            constrainedPose.Rot().Z() = model->WorldPose().Rot().Z();
+        #else
+          float currDoorPosX = model->GetWorldPose().pos.x;
+          float currDoorPosY = model->GetWorldPose().pos.y;
+          math::Pose constrainedPose;
 
+          if (currDoorPosX > maxPosX) {
+            constrainedPose.pos.x = maxPosX;
+          } else if (currDoorPosX < minPosX) {
+            constrainedPose.pos.x = minPosX;
+          } else {
+            constrainedPose.pos.x = currDoorPosX;
+          }
+
+          if (currDoorPosY > maxPosY) {
+            constrainedPose.pos.y = maxPosY;
+          } else if (currDoorPosY < minPosY) {
+            constrainedPose.pos.y = minPosY;
+          } else {
+            constrainedPose.pos.y = currDoorPosY;
+          }
+
+            constrainedPose.pos.z = model->GetWorldPose().pos.z;
+            constrainedPose.rot.x = model->GetWorldPose().rot.x;
+            constrainedPose.rot.y = model->GetWorldPose().rot.y;
+            constrainedPose.rot.z = model->GetWorldPose().rot.z;
+        #endif
         model->SetWorldPose(constrainedPose);
       }
     }
 
     void setAngularVel(float rot_z)
     {
-      cmd_vel = math::Vector3();
+      #if GAZEBO_9
+				cmd_vel = V3();
 
-      if (door_direction.compare(DIRECTION_FLIP_CLOCKWISE) == 0) { 
-        cmd_vel.z = rot_z;
-      } else {
-        cmd_vel.z = -rot_z; 
-      }
+        if (door_direction.compare(DIRECTION_FLIP_CLOCKWISE) == 0) { 
+          cmd_vel.Z() = rot_z;
+        } else {
+          cmd_vel.Z() = -rot_z; 
+        }
+      #else
+        cmd_vel = math::Vector3();
+
+        if (door_direction.compare(DIRECTION_FLIP_CLOCKWISE) == 0) { 
+          cmd_vel.z = rot_z;
+        } else {
+          cmd_vel.z = -rot_z; 
+        }
+      #endif
     }
 
     void setLinearVel(float lin_x, float lin_y) 
     {
-      cmd_vel = math::Vector3();
+      #if GAZEBO_9
+				cmd_vel = V3();
 
-      if (door_direction.compare(DIRECTION_SLIDE_LEFT) == 0) {
-        cmd_vel.x = -lin_x;
-        cmd_vel.y = -lin_y;
-      } else {
-        cmd_vel.x = lin_x;
-        cmd_vel.y = lin_y;
-      }
+        if (door_direction.compare(DIRECTION_SLIDE_LEFT) == 0) {
+          cmd_vel.X() = -lin_x;
+          cmd_vel.Y() = -lin_y;
+        } else {
+          cmd_vel.X() = lin_x;
+          cmd_vel.Y() = lin_y;
+        }
+      #else
+        cmd_vel = math::Vector3();
+
+        if (door_direction.compare(DIRECTION_SLIDE_LEFT) == 0) {
+          cmd_vel.x = -lin_x;
+          cmd_vel.y = -lin_y;
+        } else {
+          cmd_vel.x = lin_x;
+          cmd_vel.y = lin_y;
+        }
+      #endif
     }
 
     void active_doors_cb(const std_msgs::UInt32MultiArray::ConstPtr& array) 

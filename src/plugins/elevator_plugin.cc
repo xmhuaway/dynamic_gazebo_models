@@ -41,12 +41,26 @@
 #define UNKNOWN_FLOOR -100
 #define HEIGHT_LEVEL_TOLERANCE 0.01
 
+#define GAZEBO_9 (GAZEBO_MAJOR_VERSION >= 9)
+
+#if GAZEBO_9
+#include <ignition/math/Vector3.hh>
+#else
+#include <gazebo/math/gzmath.hh>
+#endif
+
 namespace gazebo
 {   
   class ElevatorPlugin : public ModelPlugin
   {
 
-    private: 
+    private:
+      #if GAZEBO_9
+        typedef ignition::math::Pose3d P3;
+        typedef ignition::math::Vector3d V3;
+      #else
+        typedef gazebo::math::Pose P3;
+      #endif
 
       ros::NodeHandle *rosNode;
       event::ConnectionPtr updateConnection;
@@ -253,7 +267,11 @@ namespace gazebo
       void directElevator()
       {
         float targetHeight = floorHeightMap[targetFloor];
-        float currentHeight = bodyLink->GetWorldCoGPose().pos.z;
+        #if GAZEBO_9
+					float currentHeight = bodyLink->WorldCoGPose().Pos().Z();
+				#else
+					float currentHeight = bodyLink->GetWorldCoGPose().pos.z;
+				#endif
         float heightDiff = currentHeight - targetHeight;
 
         if (heightDiff > HEIGHT_LEVEL_TOLERANCE || heightDiff < HEIGHT_LEVEL_TOLERANCE) {
@@ -269,15 +287,25 @@ namespace gazebo
 
       void constrainHorizontalMovement()
       {
-        math::Pose currPose = model->GetWorldPose();
-        float currHeight = currPose.pos.z;
+        #if GAZEBO_9
+					P3 currPose = model->WorldPose();
+          float currHeight = currPose.Pos().Z();
 
-        math::Pose stabilizedPose;
-        stabilizedPose.rot.x = stabilizedPose.rot.y = stabilizedPose.rot.z = 0;
-        
-        stabilizedPose.pos.x = spawnPosX;
-        stabilizedPose.pos.y = spawnPosY;
-        stabilizedPose.pos.z = currHeight;     
+          P3 stabilizedPose;
+          stabilizedPose.Rot().X() = stabilizedPose.Rot().Y() = stabilizedPose.Rot().Z() = 0;
+          stabilizedPose.Pos().X() = spawnPosX;
+          stabilizedPose.Pos().Y() = spawnPosY;
+          stabilizedPose.Pos().Z() = currHeight; 
+				#else
+					math::Pose currPose = model->GetWorldPose();
+          float currHeight = currPose.pos.z;
+
+          math::Pose stabilizedPose;
+          stabilizedPose.rot.x = stabilizedPose.rot.y = stabilizedPose.rot.z = 0;
+          stabilizedPose.pos.x = spawnPosX;
+          stabilizedPose.pos.y = spawnPosY;
+          stabilizedPose.pos.z = currHeight; 
+				#endif
 
         model->SetWorldPose(stabilizedPose);
       }
@@ -291,7 +319,11 @@ namespace gazebo
 
       int estimateCurrFloor()
       {
-        float currHeight = bodyLink->GetWorldCoGPose().pos.z;
+        #if GAZEBO_9
+					float currHeight = bodyLink->WorldCoGPose().Pos().Z();
+				#else
+					float currHeight = bodyLink->GetWorldCoGPose().pos.z;
+				#endif
 
         for (int i=0; i<numFloors; i++) {
           if (fabs(currHeight - floorHeightMap[i]) < HEIGHT_LEVEL_TOLERANCE) {
@@ -304,33 +336,61 @@ namespace gazebo
 
       void moveUp()
       {
-        bodyLink->SetForce(math::Vector3(0, 0, elevForce));
-        bodyLink->SetLinearVel(math::Vector3(0, 0, elevSpeed));
+        #if GAZEBO_9
+					bodyLink->SetForce(V3(0, 0, elevForce));
+          bodyLink->SetLinearVel(V3(0, 0, elevSpeed));
+				#else
+					bodyLink->SetForce(math::Vector3(0, 0, elevForce));
+          bodyLink->SetLinearVel(math::Vector3(0, 0, elevSpeed));
+				#endif
       }
 
       void moveDown()
       {
-        bodyLink->SetForce(math::Vector3(0, 0, -elevForce));
-        bodyLink->SetLinearVel(math::Vector3(0, 0, -elevSpeed));
+        #if GAZEBO_9
+					bodyLink->SetForce(V3(0, 0, -elevForce));
+          bodyLink->SetLinearVel(V3(0, 0, -elevSpeed));
+				#else
+					bodyLink->SetForce(math::Vector3(0, 0, -elevForce));
+          bodyLink->SetLinearVel(math::Vector3(0, 0, -elevSpeed));
+				#endif
       }
 
       void stopMotion()
       {
-        bodyLink->SetForce(math::Vector3(0, 0, 0));
-        bodyLink->SetLinearVel(math::Vector3(0, 0, 0));
+        #if GAZEBO_9
+					bodyLink->SetForce(V3(0, 0, 0));
+          bodyLink->SetLinearVel(V3(0, 0, 0));
+				#else
+					bodyLink->SetForce(math::Vector3(0, 0, 0));
+          bodyLink->SetLinearVel(math::Vector3(0, 0, 0));
+				#endif
       }
 
       void initVars()
       {
-        isActive = false;
-        targetFloor = 0;
+        #if GAZEBO_9
+					isActive = false;
+          targetFloor = 0;
 
-        std::string elev_ref_num_str = model->GetName(); 
-        replaceSubstring(elev_ref_num_str, model_domain_space, "");
-        elev_ref_num = atoi(elev_ref_num_str.c_str());
+          std::string elev_ref_num_str = model->GetName(); 
+          replaceSubstring(elev_ref_num_str, model_domain_space, "");
+          elev_ref_num = atoi(elev_ref_num_str.c_str());
 
-        spawnPosX = bodyLink->GetWorldPose().pos.x;
-        spawnPosY = bodyLink->GetWorldPose().pos.y;
+          spawnPosX = bodyLink->WorldPose().Pos().X();
+          spawnPosY = bodyLink->WorldPose().Pos().Y();
+				#else
+					isActive = false;
+          targetFloor = 0;
+
+          std::string elev_ref_num_str = model->GetName(); 
+          replaceSubstring(elev_ref_num_str, model_domain_space, "");
+          elev_ref_num = atoi(elev_ref_num_str.c_str());
+
+          spawnPosX = bodyLink->GetWorldPose().pos.x;
+          spawnPosY = bodyLink->GetWorldPose().pos.y;
+				#endif
+        
       }
 
   };

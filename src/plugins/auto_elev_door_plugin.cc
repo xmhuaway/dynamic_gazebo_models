@@ -40,6 +40,14 @@
 #define ELEV_DOOR_STATE_CLOSE 0
 #define ELEV_DOOR_STATE_FREE 2
 
+#define GAZEBO_9 (GAZEBO_MAJOR_VERSION >= 9)
+
+#if GAZEBO_9
+#include <ignition/math/Vector3.hh>
+#else
+#include <gazebo/math/gzmath.hh>
+#endif
+
 /*
 
 Limitations:
@@ -54,6 +62,13 @@ namespace gazebo
 	class AutoElevDoorPlugin : public ModelPlugin
 	{
 		private:
+
+			#if GAZEBO_9
+				typedef ignition::math::Pose3d P3;
+			#else
+				typedef gazebo::math::Pose P3;
+			#endif
+
 			ros::NodeHandle *rosNode;
 			event::ConnectionPtr updateConnection;
 			ros::Subscriber target_floor_sub, est_floor_sub, open_close_sub, active_elevs_sub;
@@ -186,15 +201,28 @@ namespace gazebo
 				closeVel = direction == RIGHT ? slide_speed : -slide_speed;
 
 				// compute slide constraints
-				float spawnPosX = model->GetWorldPose().pos.x;
+				#if GAZEBO_9
+					float spawnPosX = model->WorldPose().Pos().X();
+				#else
+					float spawnPosX = model->GetWorldPose().pos.x;
+				#endif
 				minPosX = direction == RIGHT ? spawnPosX - max_trans_dist : spawnPosX;
 				maxPosX = direction == RIGHT ? spawnPosX : spawnPosX + max_trans_dist;
 
-				float spawnPosY = model->GetWorldPose().pos.y;
+				#if GAZEBO_9
+					float spawnPosY = model->WorldPose().Pos().Y();
+				#else
+					float spawnPosY = model->GetWorldPose().pos.y;
+				#endif
+				
 				minPosY = direction == RIGHT ? spawnPosY - max_trans_dist : spawnPosY;
 				maxPosY = direction == RIGHT ? spawnPosY : spawnPosY + max_trans_dist;
 
-				elevatorModel = model->GetWorld()->GetModel(elevator_ref_name);
+				#if GAZEBO_9
+					elevatorModel = model->GetWorld()->ModelByName(elevator_ref_name);
+				#else
+					elevatorModel = model->GetWorld()->GetModel(elevator_ref_name);
+				#endif
 			}
 
 			void activateDoors()
@@ -203,8 +231,18 @@ namespace gazebo
 					return;
 				}
 
-				float currElevHeight = elevatorModel->GetWorldPose().pos.z;
-				float currDoorHeight = model->GetWorldPose().pos.z;
+				#if GAZEBO_9
+					float currElevHeight = elevatorModel->WorldPose().Pos().Z();
+				#else
+					float currElevHeight = elevatorModel->GetWorldPose().pos.z;
+				#endif
+
+				#if GAZEBO_9
+					float currDoorHeight = model->WorldPose().Pos().Z();
+				#else
+					float currDoorHeight = model->GetWorldPose().pos.z;
+				#endif
+				
 				float doorElevHeightDiff = fabs(currElevHeight - currDoorHeight);
 
 				// Primary condition: the elevator is behind the doors
@@ -228,36 +266,70 @@ namespace gazebo
 
 			void setDoorSlideVel(float vel)
 			{
-				doorLink->SetLinearVel(math::Vector3(vel, vel, 0)); // we set the vel for both x & y directions since we don't know which direction the door is facing 
+				#if GAZEBO_9
+					doorLink->SetLinearVel(ignition::math::Vector3d(vel, vel, 0)); // we set the vel for both x & y directions since we don't know which direction the door is facing 
+				#else
+					doorLink->SetLinearVel(math::Vector3(vel, vel, 0)); // we set the vel for both x & y directions since we don't know which direction the door is facing 
+				#endif
+				
 			}
 
 			void checkSlideConstraints()
 			{
-				float currDoorPosX = model->GetWorldPose().pos.x;
-				float currDoorPosY = model->GetWorldPose().pos.y;
+				#if GAZEBO_9
+					float currDoorPosX = model->WorldPose().Pos().X();
+					float currDoorPosY = model->WorldPose().Pos().Y();
+				
+					P3 constrainedPose;
 
-				math::Pose constrainedPose;
+					if (currDoorPosX > maxPosX) {
+						constrainedPose.Pos().X() = maxPosX;
+					} else if (currDoorPosX < minPosX) {
+						constrainedPose.Pos().X() = minPosX;
+					} else {
+						constrainedPose.Pos().X() = currDoorPosX;
+					}
 
-				if (currDoorPosX > maxPosX) {
-					constrainedPose.pos.x = maxPosX;
-				} else if (currDoorPosX < minPosX) {
-					constrainedPose.pos.x = minPosX;
-				} else {
-					constrainedPose.pos.x = currDoorPosX;
-				}
+					if (currDoorPosY > maxPosY) {
+						constrainedPose.Pos().Y() = maxPosY;
+					} else if (currDoorPosY < minPosY) {
+						constrainedPose.Pos().Y() = minPosY;
+					} else {
+						constrainedPose.Pos().Y() = currDoorPosY;
+					}
 
-				if (currDoorPosY > maxPosY) {
-					constrainedPose.pos.y = maxPosY;
-				} else if (currDoorPosY < minPosY) {
-					constrainedPose.pos.y = minPosY;
-				} else {
-					constrainedPose.pos.y = currDoorPosY;
-				}
+					constrainedPose.Pos().Z() = model->WorldPose().Pos().Z();
+					constrainedPose.Rot().X() = model->WorldPose().Rot().X();
+					constrainedPose.Rot().Y() = model->WorldPose().Rot().Y();
+					constrainedPose.Rot().Z() = model->WorldPose().Rot().Z();
+				#else
 
-			    constrainedPose.pos.z = model->GetWorldPose().pos.z;
-			    constrainedPose.rot.x = model->GetWorldPose().rot.x;
-			    constrainedPose.rot.y = model->GetWorldPose().rot.y;
-			    constrainedPose.rot.z = model->GetWorldPose().rot.z;
+					float currDoorPosX = model->GetWorldPose().pos.x;
+					float currDoorPosY = model->GetWorldPose().pos.y;
+
+					math::Pose constrainedPose;
+
+					if (currDoorPosX > maxPosX) {
+						constrainedPose.pos.x = maxPosX;
+					} else if (currDoorPosX < minPosX) {
+						constrainedPose.pos.x = minPosX;
+					} else {
+						constrainedPose.pos.x = currDoorPosX;
+					}
+
+					if (currDoorPosY > maxPosY) {
+						constrainedPose.pos.y = maxPosY;
+					} else if (currDoorPosY < minPosY) {
+						constrainedPose.pos.y = minPosY;
+					} else {
+						constrainedPose.pos.y = currDoorPosY;
+					}
+
+					constrainedPose.pos.z = model->GetWorldPose().pos.z;
+					constrainedPose.rot.x = model->GetWorldPose().rot.x;
+					constrainedPose.rot.y = model->GetWorldPose().rot.y;
+					constrainedPose.rot.z = model->GetWorldPose().rot.z;
+				#endif
 
 				model->SetWorldPose(constrainedPose);
 			}
